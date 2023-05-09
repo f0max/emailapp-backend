@@ -1,9 +1,9 @@
 from rest_framework import routers
-from .api import MailViewSet
+from .views import MailViewSet
 
 
 router = routers.DefaultRouter()
-router.register('api/mail', MailViewSet, 'mail')
+router.register('list/mail', MailViewSet, 'mail')
 
 
 urlpatterns = router.urls
