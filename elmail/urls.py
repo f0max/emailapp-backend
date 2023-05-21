@@ -1,9 +1,7 @@
-from rest_framework import routers
-from .views import MailViewSet
+from django.urls import path
+from .views import MailViewSet, SendMailView
 
 
-router = routers.DefaultRouter()
-router.register('list/mail', MailViewSet, 'mail')
-
-
-urlpatterns = router.urls
+urlpatterns = [
+    path('sendmail/', SendMailView.as_view(), name='sendmail'),
+]
