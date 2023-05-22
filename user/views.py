@@ -1,6 +1,7 @@
 import uuid
 import imaplib
-from emailapp.smtp_config import *
+import mysql.connector
+import emailapp.smtp_config as cfg
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -39,7 +40,7 @@ class UserAuth(APIView):
             passwd = data['password']
 
             # Установка соединения с IMAP-сервером
-            imap = imaplib.IMAP4_SSL(imap_server)
+            imap = imaplib.IMAP4_SSL(cfg.imap_server)
 
             # Проверка авторизации
             try:
@@ -80,3 +81,83 @@ class Logout(APIView):
         cache.delete(session)
 
         return Response(status=status.HTTP_200_OK)
+    
+
+class Signup(APIView):
+    def post(self, request):
+        try:
+            # Сериализируем данные из запроса
+            data = request.data
+            serializer = SMTPUserSerializer(data=data)
+
+            # Проверка на соответствие с моделью
+            if not serializer.is_valid():
+                return Response({
+                    'data': serializer.errors,
+                    'message': "Invalid request"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            data = serializer.data
+
+            # Параметры подключения к базе данных
+            config = {
+                'user': cfg.editor_user,
+                'password': cfg.editor_password,
+                'host': cfg.editor_host,
+                'database': cfg.editor_db,
+            }
+
+            # Установка соединения с базой данных
+            try:
+                conn = mysql.connector.connect(**config)
+            except:
+                return Response({
+                    'message': "Something went wrong with DB connection"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Создание объекта курсора
+            cursor = conn.cursor()
+
+            # INSERT-запрос
+            insert_query = """
+                INSERT INTO `mailbox` (`username`, `password`, `name`, `maildir`, `domain`)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+
+            # Подготовка данных из запроса
+            username = data['login']
+            password = "{PLAIN}" + data['password']
+            surname = data['surname']
+            name = f"{data['name']} {surname}"
+            user_wo_domain = username.replace("@danilaovchinnikov.ru", "")
+            maildir = f"danilaovchinnikov.ru/{user_wo_domain}/"
+            domain = "danilaovchinnikov.ru"
+
+            # Данные для запроса
+            query_data = (username, password, name, maildir, domain)
+
+            try:
+                # Выполнение INSERT-запроса
+                cursor.execute(insert_query, query_data)
+
+                # Фиксация изменений в базе данных
+                conn.commit()
+            # Обработка возможных ошибок
+            except Exception as error:
+                conn.rollback()
+                return Response({
+                    'message': f"Request execution error: {error}"
+                })
+
+            # Закрытие курсора и соединения с базой данных
+            cursor.close()
+            conn.close()
+
+            return Response({
+                'message': "Registration success"
+            })
+
+        except:
+            return Response({
+                    'message': "Something went wrong"
+                }, status= status.HTTP_400_BAD_REQUEST)

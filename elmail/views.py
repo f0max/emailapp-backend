@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import SendMailSerializer
-from emailapp.smtp_config import *
+import emailapp.smtp_config  as cfg
 
 
 class SendMailView(APIView):
@@ -24,25 +24,25 @@ class SendMailView(APIView):
             recipient = data['recipient']
             body = data['body']
 
-            email_headers = f"From: {smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
+            email_headers = f"From: {cfg.smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
             email_message = email_headers + body
 
             try:
                 # Установка соединения с SMTP-сервером
-                with SMTP(smtp_server, smtp_port) as server:
+                with SMTP(cfg.smtp_server, cfg.smtp_port) as server:
                     server.starttls()
-                    server.login(smtp_username, smtp_password)
+                    server.login(cfg.smtp_username, cfg.smtp_password)
 
                     subject = data['subject']
                     recipient = data['recipient']
                     body = data['body']
 
                     # Создание письма
-                    email_headers = f"From: {smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
+                    email_headers = f"From: {cfg.smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
                     email_message = email_headers + body
 
                     # Отправка письма
-                    server.sendmail(smtp_username, recipient, email_message)
+                    server.sendmail(cfg.smtp_username, recipient, email_message)
                     server.quit()
             except:
                 return Response({
