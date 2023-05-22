@@ -50,6 +50,8 @@ class UserAuth(APIView):
                     'message': "Authentication failed."
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
+            imap.logout()
+            
             # Создание сессии для пользователя
             session = str(uuid.uuid4())
 

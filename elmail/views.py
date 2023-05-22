@@ -20,30 +20,25 @@ class SendMailView(APIView):
                 'message': "Invalid request"
             }, status= status.HTTP_400_BAD_REQUEST)
 
-            subject = data['subject']
-            recipient = data['recipient']
-            body = data['body']
-
-            email_headers = f"From: {cfg.smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
-            email_message = email_headers + body
-
             try:
                 # Установка соединения с SMTP-сервером
                 with SMTP(cfg.smtp_server, cfg.smtp_port) as server:
                     server.starttls()
                     server.login(cfg.smtp_username, cfg.smtp_password)
 
+                    sender = data['sender']
                     subject = data['subject']
                     recipient = data['recipient']
                     body = data['body']
 
                     # Создание письма
-                    email_headers = f"From: {cfg.smtp_username}\nTo: {recipient}\nSubject: {subject}\n\n"
+                    email_headers = f"From: {sender}\nTo: {recipient}\nSubject: {subject}\n\n"
                     email_message = email_headers + body
 
                     # Отправка письма
-                    server.sendmail(cfg.smtp_username, recipient, email_message)
+                    server.sendmail(sender, recipient, email_message)
                     server.quit()
+                   
             except:
                 return Response({
                     'data': {},
