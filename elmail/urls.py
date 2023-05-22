@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import MailViewSet, SendMailView
+from .views import *
 
 
 urlpatterns = [
