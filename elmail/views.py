@@ -1,6 +1,5 @@
 import easyimap
 import poplib
-import json
 import emailapp.smtp_config as cfg
 from smtplib import SMTP
 from rest_framework import status
@@ -63,129 +62,171 @@ class SendMailView(APIView):
                 'message': "Message successfuly sent"
             }, status= status.HTTP_201_CREATED)
 
-        except:
+        except Exception as err:
+            print(err)
             return Response({
-                'data': {},
                 'message': "Something went wrong"
-            }, status= status.HTTP_400_BAD_REQUEST)
+            })
 
 
 class InboxView(APIView):
     def get(self, request):
-        session = request.COOKIES.get("session_cookie")
-        user = cache.get(session)
-        password = SMTPUser.objects.get(login=user).password
+        try:
+            session = request.COOKIES.get("session_cookie")
+            user = cache.get(session)
+            password = SMTPUser.objects.get(login=user).password
 
-        server = easyimap.connect(cfg.imap_server, user, password)
+            server = easyimap.connect(cfg.imap_server, user, password)
 
-        owner_id = SMTPUser.objects.get(login=user).id
-        msgs = []
+            owner_id = SMTPUser.objects.get(login=user).id
+            msgs = []
 
-        for mail_id in server.listids():
-            mail = server.mail(mail_id)
-            msgs.append({
-                "subject": mail.title,
-                "sender": mail.from_addr,
-                "recipient": mail.to,
-                "body": mail.body,
-                "date": mail.date,
-                "status": "inbox",
-                "owner": owner_id
+            for mail_id in server.listids():
+                mail = server.mail(mail_id)
+                msgs.append({
+                    "subject": mail.title,
+                    "sender": mail.from_addr,
+                    "recipient": mail.to,
+                    "body": mail.body,
+                    "date": mail.date,
+                    "status": "inbox",
+                    "owner": owner_id
+                })
+
+            server.quit()
+
+            for mail in msgs:
+                serializer = SendMailSerializer(data=mail)
+                if not serializer.is_valid():
+                    print(serializer.errors)
+                else:
+                    serializer.save()
+
+            server = poplib.POP3(cfg.imap_server)
+            server.stls()
+            server.user(user)
+            server.pass_(password)
+            num_messages = len(server.list()[1])
+            for i in range(num_messages):
+                server.dele(i+1)
+            server.quit()
+
+            mails = Mail.objects.filter(owner_id=owner_id, status="inbox")
+            serializer = SendMailSerializer(mails, many=True)
+
+            return Response(serializer.data)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
             })
-
-        server.quit()
-
-        for mail in msgs:
-            serializer = SendMailSerializer(data=mail)
-            if not serializer.is_valid():
-                print(serializer.errors)
-            else:
-                serializer.save()
-
-        server = poplib.POP3(cfg.imap_server)
-        server.stls()
-        server.user(user)
-        server.pass_(password)
-        num_messages = len(server.list()[1])
-        for i in range(num_messages):
-            server.dele(i+1)
-        server.quit()
-
-        mails = Mail.objects.filter(owner_id=owner_id, status="inbox")
-        serializer = SendMailSerializer(mails, many=True)
-
-        return Response(serializer.data)
     
 
 class SentView(APIView):
     def get(self, request):
-        session = request.COOKIES.get("session_cookie")
-        user = cache.get(session)
-        owner_id = SMTPUser.objects.get(login=user).id
-        mails = Mail.objects.filter(owner_id=owner_id, status="sent")
-        serializer = SendMailSerializer(mails, many=True)
+        try:
+            session = request.COOKIES.get("session_cookie")
+            user = cache.get(session)
+            owner_id = SMTPUser.objects.get(login=user).id
+            mails = Mail.objects.filter(owner_id=owner_id, status="sent")
+            serializer = SendMailSerializer(mails, many=True)
 
-        return Response(serializer.data)
+            return Response(serializer.data)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
 
 
 class JunkView(APIView):
     def get(self, request):
-        session = request.COOKIES.get("session_cookie")
-        user = cache.get(session)
-        owner_id = SMTPUser.objects.get(login=user).id
-        mails = Mail.objects.filter(owner_id=owner_id, status="junk")
-        serializer = SendMailSerializer(mails, many=True)
+        try:
+            session = request.COOKIES.get("session_cookie")
+            user = cache.get(session)
+            owner_id = SMTPUser.objects.get(login=user).id
+            mails = Mail.objects.filter(owner_id=owner_id, status="junk")
+            serializer = SendMailSerializer(mails, many=True)
 
-        return Response(serializer.data)
+            return Response(serializer.data)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
 
 
 class TrashView(APIView):
     def get(self, request):
-        session = request.COOKIES.get("session_cookie")
-        user = cache.get(session)
-        owner_id = SMTPUser.objects.get(login=user).id
-        mails = Mail.objects.filter(owner_id=owner_id, status="trash")
-        serializer = SendMailSerializer(mails, many=True)
+        try:
+            session = request.COOKIES.get("session_cookie")
+            user = cache.get(session)
+            owner_id = SMTPUser.objects.get(login=user).id
+            mails = Mail.objects.filter(owner_id=owner_id, status="trash")
+            serializer = SendMailSerializer(mails, many=True)
 
-        return Response(serializer.data)
+            return Response(serializer.data)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
 
 
 class ChangeStatusView(APIView):
     def post(self, request):
-        data = request.data
-        if 'id' not in data:
-            return Response({
-                'message': "id is required"
-            })
-        
-        if 'status' not in data:
-            return Response({
-                'message': "status is required"
-            })
-
         try:
-            mail = Mail.objects.get(id=data['id'])
-            mail.status = data['status']
-            mail.save()
-        except:
-            return Response({
-                'message': "Something went wrong. Check mail id."
-            })
-        
-        serializer = SendMailSerializer(mail)
+            data = request.data
+            if 'id' not in data:
+                return Response({
+                    'message': "id is required"
+                })
+            
+            if 'status' not in data:
+                return Response({
+                    'message': "status is required"
+                })
 
-        return Response(serializer.data)
+            try:
+                mail = Mail.objects.get(id=data['id'])
+                mail.status = data['status']
+                mail.save()
+            except:
+                return Response({
+                    'message': "Something went wrong. Check mail id."
+                })
+            
+            serializer = SendMailSerializer(mail)
+
+            return Response(serializer.data)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
 
 
 class DeleteMailView(APIView):
     def post(self, request):
-        data = request.data
-        if 'id' not in data:
-            return Response({
-                'message': "id is required"
-            })
-        
-        mail = Mail.objects.get(id=data['id'])
-        mail.delete()
+        try:
+            data = request.data
+            if 'id' not in data:
+                return Response({
+                    'message': "id is required"
+                })
+            
+            mail = Mail.objects.get(id=data['id'])
+            mail.delete()
 
-        return Response(status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
+
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })

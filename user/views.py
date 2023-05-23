@@ -12,15 +12,22 @@ from django.core.cache import cache
 
 class LoginBySession(APIView):
     def get(self, request):
-        # Получаем сессию из куки из запроса
-        session = request.COOKIES.get("session_cookie")
+        try:
+            # Получаем сессию из куки из запроса
+            session = request.COOKIES.get("session_cookie")
 
-        # Ищем пользователя по сессии в redis
-        user = cache.get(session)
+            # Ищем пользователя по сессии в redis
+            user = cache.get(session)
 
-        return Response({
-            'user': user
-        }, status=status.HTTP_200_OK)
+            return Response({
+                'user': user
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
     
 
 class UserAuth(APIView):
@@ -73,21 +80,33 @@ class UserAuth(APIView):
 
             return response
 
-        except:
+        except Exception as err:
+            print(err)
             return Response({
                     'message': "Something went wrong"
-                }, status= status.HTTP_400_BAD_REQUEST)
+            })
 
 
 class Logout(APIView):
     def get(self, request):
-        # Получаем сессию из куки из запроса
-        session = request.COOKIES.get("session_cookie")
+        try:
+            # Получаем сессию из куки из запроса
+            session = request.COOKIES.get("session_cookie")
 
-        # Удаляем сессию из redis
-        cache.delete(session)
+            # Удаляем сессию из redis
+            cache.delete(session)
 
-        return Response(status=status.HTTP_200_OK)
+            # Удаляем куку
+            response = Response(status=status.HTTP_200_OK, data="{\"status\": \"successfully logged out\"}")
+            response.delete_cookie("session_cookie")
+
+            return response
+        
+        except Exception as err:
+            print(err)
+            return Response({
+                'message': "Something went wrong"
+            })
     
 
 class Signup(APIView):
@@ -175,7 +194,8 @@ class Signup(APIView):
                 'message': "Registration success"
             })
 
-        except:
+        except Exception as err:
+            print(err)
             return Response({
                     'message': "Something went wrong"
-                }, status= status.HTTP_400_BAD_REQUEST)
+            })
