@@ -157,31 +157,35 @@ class ChangeStatusView(APIView):
             return Response({
                 'message': "id is required"
             })
-        serializer = SendMailSerializer(data=data)
-
-        if not serializer.is_valid():
+        
+        if 'status' not in data:
             return Response({
-            'data': serializer.errors,
-            'message': "Invalid request"
-        }, status= status.HTTP_400_BAD_REQUEST)
+                'message': "status is required"
+            })
 
-        mail = Mail.objects.get(id=data['id'])
-        mail.status = data['status']
-        mail.save()
+        try:
+            mail = Mail.objects.get(id=data['id'])
+            mail.status = data['status']
+            mail.save()
+        except:
+            return Response({
+                'message': "Something went wrong. Check mail id."
+            })
+        
         serializer = SendMailSerializer(mail)
 
         return Response(serializer.data)
 
 
-############## TODO #############
-class TestView(APIView):
+class DeleteMailView(APIView):
     def post(self, request):
         data = request.data
-        serializer = SendMailSerializer(data=data)
+        if 'id' not in data:
+            return Response({
+                'message': "id is required"
+            })
+        
+        mail = Mail.objects.get(id=data['id'])
+        mail.delete()
 
-        session = request.COOKIES.get("session_cookie")
-        user = cache.get(session)
-        password = SMTPUser.objects.get(login=user).password
-        print(password)
-
-        return Response("qwe")
+        return Response(status=status.HTTP_200_OK)

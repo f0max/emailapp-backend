@@ -9,5 +9,5 @@ urlpatterns = [
     path('junk/', JunkView.as_view(), name='junk'),
     path('trash/', TrashView.as_view(), name='trash'),
     path('chstatus/', ChangeStatusView.as_view(), name='chstatus'),
-    path('test/', TestView.as_view())
+    path('delete/', DeleteMailView.as_view(), name='deletemail')
 ]
