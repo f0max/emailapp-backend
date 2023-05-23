@@ -1,9 +1,14 @@
+import easyimap
+import poplib
+import json
+import emailapp.smtp_config as cfg
 from smtplib import SMTP
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import SendMailSerializer
-import emailapp.smtp_config  as cfg
+from user.models import SMTPUser
+from django.core.cache import cache
 
 
 class SendMailView(APIView):
@@ -20,16 +25,20 @@ class SendMailView(APIView):
                 'message': "Invalid request"
             }, status= status.HTTP_400_BAD_REQUEST)
 
+            session = request.COOKIES.get("session_cookie")
+            user = cache.get(session)
+            password = SMTPUser.objects.get(login=user).password
+
+            sender = data['sender']
+            subject = data['subject']
+            recipient = data['recipient']
+            body = data['body']
+
             try:
                 # Установка соединения с SMTP-сервером
                 with SMTP(cfg.smtp_server, cfg.smtp_port) as server:
                     server.starttls()
-                    server.login(cfg.smtp_username, cfg.smtp_password)
-
-                    sender = data['sender']
-                    subject = data['subject']
-                    recipient = data['recipient']
-                    body = data['body']
+                    server.login(sender, password)
 
                     # Создание письма
                     email_headers = f"From: {sender}\nTo: {recipient}\nSubject: {subject}\n\n"
@@ -58,3 +67,64 @@ class SendMailView(APIView):
                 'data': {},
                 'message': "Something went wrong"
             }, status= status.HTTP_400_BAD_REQUEST)
+
+
+class InboxView(APIView):
+    def get(self, request):
+        session = request.COOKIES.get("session_cookie")
+        user = cache.get(session)
+        password = SMTPUser.objects.get(login=user).password
+
+        server = easyimap.connect(cfg.imap_server, user, password)
+
+        owner_id = SMTPUser.objects.get(login=user).id
+        msgs = []
+
+        for mail_id in server.listids():
+            mail = server.mail(mail_id)
+            msgs.append({
+                "subject": mail.title,
+                "sender": mail.from_addr,
+                "recipient": mail.to,
+                "body": mail.body,
+                "date": mail.date,
+                "status": "inbox",
+                "owner": owner_id
+            })
+
+        res = json.dumps(msgs, ensure_ascii=False)
+
+        for mail in msgs:
+            serializer = SendMailSerializer(data=mail)
+            if not serializer.is_valid():
+                print(serializer.errors)
+            else:
+                serializer.save()
+
+
+        server = poplib.POP3(cfg.imap_server)
+        server.stls()
+        server.user(user)
+        server.pass_(password)
+        num_messages = len(server.list()[1])
+        for i in range(num_messages):
+            server.dele(i+1)
+        server.quit()
+
+        return Response({
+            'msgs': res
+        })
+    
+
+############## TODO #############
+class TestView(APIView):
+    def post(self, request):
+        data = request.data
+        serializer = SendMailSerializer(data=data)
+
+        session = request.COOKIES.get("session_cookie")
+        user = cache.get(session)
+        password = SMTPUser.objects.get(login=user).password
+        print(password)
+
+        return Response("qwe")

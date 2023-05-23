@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import SMTPUserSerializer
+from .models import SMTPUser
 from django.core.cache import cache
 
 
@@ -58,8 +59,12 @@ class UserAuth(APIView):
             # Сохраняем пару session:login в redis на 1 час
             cache.set(session, login, timeout=3600)
 
+            # id пользователя
+            id = SMTPUser.objects.get(login=login).id
+
             response = Response({
                 'session': session,
+                'user_id': id,
                 'message': "Authentication success."
             }, status=status.HTTP_200_OK)
 
@@ -98,8 +103,6 @@ class Signup(APIView):
                     'data': serializer.errors,
                     'message': "Invalid request"
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
-            data = serializer.data
 
             # Параметры подключения к базе данных
             config = {
@@ -129,14 +132,24 @@ class Signup(APIView):
             # Подготовка данных из запроса
             username = data['login']
             password = "{PLAIN}" + data['password']
-            surname = data['surname']
-            name = f"{data['name']} {surname}"
+
+            if 'surname' not in data:
+                surname = ""
+            else:
+                surname = data['surname']
+            
+            if 'name' not in data:
+                name = ""
+            else:
+                name = data['name']
+
+            qr_name = f"{name} {surname}"
             user_wo_domain = username.replace("@danilaovchinnikov.ru", "")
             maildir = f"danilaovchinnikov.ru/{user_wo_domain}/"
             domain = "danilaovchinnikov.ru"
 
             # Данные для запроса
-            query_data = (username, password, name, maildir, domain)
+            query_data = (username, password, qr_name, maildir, domain)
 
             try:
                 # Выполнение INSERT-запроса
@@ -145,15 +158,18 @@ class Signup(APIView):
                 # Фиксация изменений в базе данных
                 conn.commit()
             # Обработка возможных ошибок
-            except Exception as error:
+            except Exception as err:
+                print(err)
                 conn.rollback()
                 return Response({
-                    'message': f"Request execution error: {error}"
+                    'message': "Request execution error:"
                 })
 
             # Закрытие курсора и соединения с базой данных
             cursor.close()
             conn.close()
+
+            serializer.save()
 
             return Response({
                 'message': "Registration success"
