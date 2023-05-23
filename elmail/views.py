@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import SendMailSerializer
+from .models import Mail
 from user.models import SMTPUser
 from django.core.cache import cache
 
@@ -92,7 +93,7 @@ class InboxView(APIView):
                 "owner": owner_id
             })
 
-        res = json.dumps(msgs, ensure_ascii=False)
+        server.quit()
 
         for mail in msgs:
             serializer = SendMailSerializer(data=mail)
@@ -100,7 +101,6 @@ class InboxView(APIView):
                 print(serializer.errors)
             else:
                 serializer.save()
-
 
         server = poplib.POP3(cfg.imap_server)
         server.stls()
@@ -111,10 +111,67 @@ class InboxView(APIView):
             server.dele(i+1)
         server.quit()
 
-        return Response({
-            'msgs': res
-        })
+        mails = Mail.objects.filter(owner_id=owner_id, status="inbox")
+        serializer = SendMailSerializer(mails, many=True)
+
+        return Response(serializer.data)
     
+
+class SentView(APIView):
+    def get(self, request):
+        session = request.COOKIES.get("session_cookie")
+        user = cache.get(session)
+        owner_id = SMTPUser.objects.get(login=user).id
+        mails = Mail.objects.filter(owner_id=owner_id, status="sent")
+        serializer = SendMailSerializer(mails, many=True)
+
+        return Response(serializer.data)
+
+
+class JunkView(APIView):
+    def get(self, request):
+        session = request.COOKIES.get("session_cookie")
+        user = cache.get(session)
+        owner_id = SMTPUser.objects.get(login=user).id
+        mails = Mail.objects.filter(owner_id=owner_id, status="junk")
+        serializer = SendMailSerializer(mails, many=True)
+
+        return Response(serializer.data)
+
+
+class TrashView(APIView):
+    def get(self, request):
+        session = request.COOKIES.get("session_cookie")
+        user = cache.get(session)
+        owner_id = SMTPUser.objects.get(login=user).id
+        mails = Mail.objects.filter(owner_id=owner_id, status="trash")
+        serializer = SendMailSerializer(mails, many=True)
+
+        return Response(serializer.data)
+
+
+class ChangeStatusView(APIView):
+    def post(self, request):
+        data = request.data
+        if 'id' not in data:
+            return Response({
+                'message': "id is required"
+            })
+        serializer = SendMailSerializer(data=data)
+
+        if not serializer.is_valid():
+            return Response({
+            'data': serializer.errors,
+            'message': "Invalid request"
+        }, status= status.HTTP_400_BAD_REQUEST)
+
+        mail = Mail.objects.get(id=data['id'])
+        mail.status = data['status']
+        mail.save()
+        serializer = SendMailSerializer(mail)
+
+        return Response(serializer.data)
+
 
 ############## TODO #############
 class TestView(APIView):
